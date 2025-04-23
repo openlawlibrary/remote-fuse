@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "remote-fuse"
+version = "0.1.0"
+description = "Mount remote cloud storage as FUSE filesystem"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+dependencies = [
+    "azure-identity>=1.21.0",
+    "fuse-python>=1.0.9",
+    "msgraph-sdk>=1.26.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.3.5",
+    "pytest-asyncio>=0.25.0",
+]
+
+[tool.ruff]
+line-length = 99
+
+[project.scripts]
+fuse-sharepoint = "commands.fuse_sharepoint:main"
+
+[tool.setuptools]
+packages = ["src", "commands"]
+package-dir = {"" = "."}
+
