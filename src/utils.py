@@ -1,20 +1,10 @@
+import os
 import asyncio
 import logging
 import threading
-from pathlib import Path
 
-LOG_FILE = '/var/log/remote_fuse.log'
-
-log_path = Path(LOG_FILE)
-
-try:
-    if not log_path.exists():
-        log_path.touch()
-    with log_path.open('r') as f:
-        pass
-except PermissionError:
-    LOG_FILE = 'remote_fuse.log'
-except Exception:
+LOG_FILE = os.environ.get('REMOTE_FUSE_LOG_FILE')
+if LOG_FILE is None:
     LOG_FILE = 'remote_fuse.log'
 
 # Configure logging
