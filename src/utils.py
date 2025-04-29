@@ -1,21 +1,6 @@
-import os
 import asyncio
-import logging
 import threading
 
-LOG_FILE = os.environ.get('REMOTE_FUSE_LOG_FILE')
-if LOG_FILE is None:
-    LOG_FILE = 'remote_fuse.log'
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    filename=LOG_FILE,
-    filemode='a',
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-
-logger = logging.getLogger(__name__)
 
 class AsyncExecutor:
     """I am helper class that handles asynchronous code execution inside syncronous functions"""
