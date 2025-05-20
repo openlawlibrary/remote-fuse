@@ -2,7 +2,6 @@ import os
 import stat
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
 
 from src.exceptions import ItemDoesntExist
 from src.logging import logger
@@ -53,7 +52,7 @@ class SharePointOperations(RemoteOperations):
             logger.error(f"Failed to get drive ID: {e}")
             raise
 
-    async def _get_directory_contents(self, path: str) -> List[str]:
+    async def _get_directory_contents(self, path: str) -> list[str]:
         """Get directory contents as a list of names directly from SharePoint"""
         # Special handling for macOS hidden files
         if os.path.basename(path).startswith("._"):
@@ -160,7 +159,7 @@ class SharePointOperations(RemoteOperations):
             logger.error(f"Failed to get attributes for {path}: {e}")
             raise
 
-    async def _get_item_id(self, path: str) -> Optional[str]:
+    async def _get_item_id(self, path: str) -> str | None:
         """Get item ID for a path"""
         if os.path.basename(path).startswith("._"):
             logger.debug(f"Ignoring macOS metadata path: {path}")
