@@ -28,6 +28,7 @@ line-length = 99
 fuse-sharepoint = "commands.fuse_sharepoint:main"
 
 [tool.setuptools]
-packages = ["src", "commands"]
-package-dir = {"" = "."}
+package-dir = {"" = "src"}
 
+[tool.setuptools.packages.find]
+where = ["src"]
