@@ -86,17 +86,26 @@ class FuseRemoteFilesystem(Fuse):
     defined by the RemoteOperations protocol.
     """
     
-    def __init__(self, operations_class, *args, **kwargs):
+    def __init__(self, operations=None, operations_class=None, *args, **kwargs):
         """Initialize the filesystem.
         
         Args:
-            operations_class: Class that implements RemoteOperations
+            operations: Object that implements RemoteOperations. If not supplied,
+            system will try to create one using `operations_class` argument.
+            operations_class: Class that implements RemoteOperations. Nont needed
+            if `operations` argument is supplied.
             *args: Arguments to pass to Fuse.__init__
             **kwargs: Keyword arguments to pass to Fuse.__init__
         """
         Fuse.__init__(self, *args, **kwargs)
 
-        self.operations = operations_class()
+        if operations is not None:
+            self.operations = operations
+        elif operations_class is not None:
+            self.operations = operations_class()
+        else:
+            raise Exception("Operations argument is missing. Either provide an object or a class name")
+
         self.executor = AsyncExecutor()
 
         self.multithreaded = True
