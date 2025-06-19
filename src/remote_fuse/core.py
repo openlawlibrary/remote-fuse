@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Optional, Protocol
 import fuse
 from fuse import Direntry, Fuse
 
-from src.exceptions import ItemDoesntExist
-from src.logging import logger
-from src.utils import AsyncExecutor
+from remote_fuse.exceptions import ItemDoesntExist
+from remote_fuse.logging import logger
+from remote_fuse.utils import AsyncExecutor
 
 fuse.fuse_python_api = (0, 2)
 fuse.feature_assert('stateful_files', 'has_init')

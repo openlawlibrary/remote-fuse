@@ -3,9 +3,9 @@ import stat
 from datetime import datetime
 from pathlib import Path
 
-from src.exceptions import ItemDoesntExist
-from src.logging import logger
-from src.remote_fuse import RemoteOperations, RemoteStat
+from remote_fuse.core import RemoteOperations, RemoteStat
+from remote_fuse.exceptions import ItemDoesntExist
+from remote_fuse.logging import logger
 
 from fuse import Direntry
 
@@ -49,8 +49,17 @@ class SharePointOperations(RemoteOperations):
             drive = await self.graph_client.sites.by_site_id(self.site_id).drive.get()
             return drive.id
         except Exception as e:
-            logger.error(f"Failed to get drive ID: {e}")
-            raise
+            logger.error(f"Failed to get default drive: {e}")
+            try:
+                drives = await self.graph_client.sites.by_site_id(self.site_id).drives.get()
+                drives = drives.value
+                names = [value.name for value in drives]
+                drive_names = ", ".join(names)
+                logger.warn(drive_names)
+                return drives[0].id
+            except Exception as e:
+                logger.error(f"Failed to get drives: {e}")
+                raise
 
     async def _get_directory_contents(self, path: str) -> list[str]:
         """Get directory contents as a list of names directly from SharePoint"""

@@ -1,6 +1,6 @@
 import fuse
-from src.remote_fuse import FuseRemoteFilesystem
-from src.sharepoint import SharePointOperations
+from remote_fuse.core import FuseRemoteFilesystem
+from remote_fuse.sharepoint import SharePointOperations
 
 def main():
     # Initialize filesystem

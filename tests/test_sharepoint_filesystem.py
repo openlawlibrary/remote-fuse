@@ -8,8 +8,8 @@ import os
 import sys
 import pytest
 
-from remote_fuse import FuseRemoteFilesystem
-from sharepoint import SharePointOperations
+from remote_fuse.core import FuseRemoteFilesystem
+from remote_fuse.sharepoint import SharePointOperations
 
 @pytest.fixture
 def fs():
