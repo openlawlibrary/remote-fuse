@@ -17,15 +17,23 @@ from msgraph.generated.models.folder import Folder
 from msgraph.generated.models.item_reference import ItemReference
 
 class SharePointOperations(RemoteOperations):
-    def __init__(self):
-        self.tenant_id = os.environ.get("TENANT_ID")
-        self.client_id = os.environ.get("CLIENT_ID")
-        self.client_secret = os.environ.get("CLIENT_SECRET")
-        self.site_id = os.environ.get("SITE_ID")
-        self.drive_id = None
+    def __init__(self, tenant_id=None, client_id=None, site_id=None, client_secret=None):
+        missing_vars : list[str] = []
+        self.tenant_id = tenant_id or os.environ.get("TENANT_ID", None)
+        if self.tenant_id is None:
+            missing_vars.append("TENANT_ID")
+        self.client_id = client_id or os.environ.get("CLIENT_ID", None)
+        if self.client_id is None:
+            missing_vars.append("CLIENT_ID")
+        self.client_secret = client_secret or os.environ.get("CLIENT_SECRET", None)
+        if self.client_secret is None:
+            missing_vars.append("CLIENT_SECRET")
+        self.site_id = site_id or os.environ.get("SITE_ID", None)
 
-        if not all([self.tenant_id, self.client_id, self.client_secret]):
-            raise ValueError("Missing required environment variables: TENANT_ID, CLIENT_ID, CLIENT_SECRET")
+        if missing_vars:
+            raise ValueError(f"Missing required arguments or environment variables: {', '.join(missing_vars)}")
+
+        self.drive_id = None
 
         # Initialize Graph client
         scopes = ["https://graph.microsoft.com/.default"]
