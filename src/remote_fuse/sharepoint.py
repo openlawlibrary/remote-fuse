@@ -313,6 +313,8 @@ class SharePointOperations(RemoteOperations):
 
             # Get content
             response = await self.graph_client.drives.by_drive_id(self.drive_id).items.by_drive_item_id(item_id).content.get()
+            if response is None:
+                return b""
             return response
         except Exception as e:
             logger.error(f"Failed to fetch content for {path}: {e}")
