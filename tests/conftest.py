@@ -14,7 +14,7 @@ topdir = Path(__file__).parent.parent
 def fuse_sharepoint():
     with TemporaryDirectory(dir=topdir) as tmpdir:
         st_dev = os.stat(tmpdir).st_dev
-        proc = subprocess.Popen([sys.executable, "-d", topdir / "commands" / "fuse_sharepoint.py", tmpdir], stdin=subprocess.DEVNULL)
+        proc = subprocess.Popen([sys.executable, "-d", topdir / "src" / "commands" / "fuse_sharepoint.py", tmpdir], stdin=subprocess.DEVNULL)
 
         deadline = time.time() + 4
         while time.time() < deadline:
