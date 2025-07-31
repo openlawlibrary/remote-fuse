@@ -51,7 +51,7 @@ pip install -e ".[test]"
 
 ```bash
 # Mount SharePoint site as local directory
-python commands/fuse_sharepoint.py <mount-point>
+python src/commands/fuse_sharepoint.py <mount-point> [--site-id optional]
 
 # Unomunt SharePoint site when finished
 fusermount -uqz <mount-point>
@@ -62,9 +62,9 @@ pytest
 
 ## Overview of the project
 
-* `src/remote_fuse.py`: Implements Fuse interface and by invoking API calls to remote service
-* `src/sharepoint.py`: Implements the interface to present SharePoint as a local filesystem
-* `commands/fuse_sharepoint.py`: Mounts SharePoint site as local directory
+* `src/remote_fuse/core.py`: Implements Fuse interface and by invoking API calls to remote service
+* `src/remote_fuse/sharepoint.py`: Implements the interface to present SharePoint as a local filesystem
+* `src/commands/fuse_sharepoint.py`: Mounts SharePoint site as local directory
 
 ## python-fuse documentation
 
