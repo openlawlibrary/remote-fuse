@@ -321,7 +321,7 @@ class SharePointOperations(RemoteOperations):
             raise
 
     async def _upload_file_content(self, path: str, content: bytes) -> None:
-        """Upload file content to SharePoint"""
+        """Upload file content to SharePoint with binary file support"""
         if os.path.basename(path).startswith("._"):
             logger.debug(f"Ignoring macOS metadata path: {path}")
             return None
@@ -332,10 +332,40 @@ class SharePointOperations(RemoteOperations):
                 # File doesn't exist yet, create it
                 item_id = await self._create_file(path)
 
-            # Upload content
-            await self.graph_client.drives.by_drive_id(self.drive_id).items.by_drive_item_id(item_id).content.put(
-                content
-            )
+            # For large files (>4MB), use resumable upload session
+            # This is especially important for .docx files which can be large
+            if len(content) > 4 * 1024 * 1024:  # 4MB threshold
+                logger.debug(f"Using resumable upload for large file {path} ({len(content)} bytes)")
+                # Create upload session
+                upload_session = await self.graph_client.drives.by_drive_id(self.drive_id).items.by_drive_item_id(item_id).create_upload_session.post({
+                    "item": {
+                        "@microsoft.graph.conflictBehavior": "replace"
+                    }
+                })
+                
+                # Upload in chunks to prevent corruption
+                chunk_size = 320 * 1024  # 320KB chunks as recommended by Microsoft
+                for i in range(0, len(content), chunk_size):
+                    chunk = content[i:i + chunk_size]
+                    start_byte = i
+                    end_byte = min(i + chunk_size - 1, len(content) - 1)
+                    
+                    # Upload chunk with proper headers
+                    import requests
+                    headers = {
+                        'Content-Range': f'bytes {start_byte}-{end_byte}/{len(content)}',
+                        'Content-Length': str(len(chunk))
+                    }
+                    response = requests.put(upload_session.upload_url, data=chunk, headers=headers)
+                    if response.status_code not in [200, 201, 202]:
+                        raise Exception(f"Upload chunk failed: {response.status_code}")
+            else:
+                # Direct upload for smaller files
+                await self.graph_client.drives.by_drive_id(self.drive_id).items.by_drive_item_id(item_id).content.put(
+                    content
+                )
+            
+            logger.debug(f"Successfully uploaded {len(content)} bytes to {path}")
         except Exception as e:
             logger.error(f"Failed to upload content for {path}: {e}")
             raise

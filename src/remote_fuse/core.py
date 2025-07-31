@@ -111,13 +111,14 @@ class FuseRemoteFilesystem(Fuse):
         self.multithreaded = True
         self.fuse_args.setmod('foreground')
 
-        # Add these FUSE mount options to prevent deadlocks
-        self.fuse_args.add("direct_io")        # Bypass kernel caching
+        # Add these FUSE mount options to prevent deadlocks and improve binary file handling
+        self.fuse_args.add("direct_io")        # Bypass kernel caching - critical for binary files
         self.fuse_args.add("entry_timeout=0")  # Disable directory entry caching
         self.fuse_args.add("attr_timeout=0")   # Disable attribute caching
         self.fuse_args.add("negative_timeout=0") # Disable negative response caching
         self.fuse_args.add("intr")             # Allow requests to be interrupted
-        self.fuse_args.add("big_writes")       # Enable larger writes 
+        self.fuse_args.add("big_writes")       # Enable larger writes - important for .docx files
+        self.fuse_args.add("max_write=1048576") # Set max write size to 1MB for better performance 
 
     def statfs(self):
         """Return filesystem statistics"""
@@ -254,37 +255,38 @@ class FuseRemoteFilesystem(Fuse):
         """Write data to a file."""
         logger.debug(f"Writing to file: {path}, {len(data)} bytes at offset: {offset}")
         try:
-            # Need to read current content first if offset > 0 or not writing to the end
+            # For binary files like .docx, we need to be more careful about write operations
             current_content = b""
-            if offset > 0:
-                try:
-                    current_content = self.executor.run(self.operations._fetch_file_content(path))
-                except ItemDoesntExist:
-                    # File might not exist yet
-                    pass
-                except Exception as e:
-                    logger.error(f"Failed to read current content: {e}")
-                    return -errno.EIO
+            
+            # Always read current content to maintain file integrity
+            try:
+                current_content = self.executor.run(self.operations._fetch_file_content(path))
+            except ItemDoesntExist:
+                # File might not exist yet, start with empty content
+                current_content = b""
+            except Exception as e:
+                logger.error(f"Failed to read current content: {e}")
+                return -errno.EIO
 
-            # If offset is beyond current size, pad with zeros
-            if offset > len(current_content):
-                current_content = current_content + b"\0" * (offset - len(current_content))
+            # Ensure we have enough space for the write operation
+            required_size = offset + len(data)
+            if len(current_content) < required_size:
+                # Extend current content with zeros if needed
+                current_content = current_content + b"\0" * (required_size - len(current_content))
 
-            # Create new content by replacing a portion of current content with new data
-            if offset + len(data) > len(current_content):
-                # Append or partial overwrite
-                new_content = current_content[:offset] + data
-            else:
-                # Insert in the middle
-                new_content = current_content[:offset] + data + current_content[offset + len(data):]
+            # Create new content by replacing the specific range
+            # This preserves binary file integrity better than the previous approach
+            new_content = bytearray(current_content)
+            new_content[offset:offset + len(data)] = data
 
-            # Upload to remote storage
-            self.executor.run(self.operations._upload_file_content(path, new_content))
+            # Convert back to bytes and upload
+            final_content = bytes(new_content)
+            self.executor.run(self.operations._upload_file_content(path, final_content))
 
-            # Return number of bytes written
+            logger.debug(f"Successfully wrote {len(data)} bytes to {path} at offset {offset}")
             return len(data)
         except Exception as e:
-            logger.error(f"Write failed: {e}")
+            logger.error(f"Write failed for {path}: {e}")
             return -errno.EIO
 
     def access(self, path: str, mode):
@@ -320,21 +322,28 @@ class FuseRemoteFilesystem(Fuse):
         """Truncate a file to a specified length."""
         logger.debug(f"Truncating file: {path} to length: {length}")
         try:
-            # Implement proper truncate operation
+            # Implement proper truncate operation for binary files
             if hasattr(self.operations, '_truncate_file'):
                 # Use dedicated truncate if available
                 self.executor.run(self.operations._truncate_file(path, length))
             else:
-                # Fallback implementation
-                current_content = self.executor.run(self.operations._fetch_file_content(path))
+                # Fallback implementation with better binary file handling
+                try:
+                    current_content = self.executor.run(self.operations._fetch_file_content(path))
+                except ItemDoesntExist:
+                    # File doesn't exist, create empty content
+                    current_content = b""
                 
-                # Adjust content length
+                # Adjust content length preserving binary data integrity
                 if length < len(current_content):
-                    # Truncate to shorter length
+                    # Truncate to shorter length - preserve exact bytes
                     new_content = current_content[:length]
-                else:
-                    # Extend with zeros
+                elif length > len(current_content):
+                    # Extend with zeros - important for binary files
                     new_content = current_content + b"\0" * (length - len(current_content))
+                else:
+                    # Length matches, no change needed
+                    new_content = current_content
                     
                 # Upload modified content
                 self.executor.run(self.operations._upload_file_content(path, new_content))
