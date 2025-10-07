@@ -10,6 +10,7 @@ from remote_fuse.logging import logger
 from fuse import Direntry
 
 from azure.identity import ClientSecretCredential
+from kiota_abstractions.api_error import APIError
 from msgraph import GraphServiceClient
 from msgraph.generated.models.drive_item import DriveItem
 from msgraph.generated.models.file import File
@@ -169,8 +170,13 @@ class SharePointOperations(RemoteOperations):
             st.st_mtime = last_modified
             st.st_atime = last_modified
             return st
+        except APIError as e:
+            if e.response_status_code == 404:
+                self.path_to_id_map.pop(path, None)
+                raise ItemDoesntExist
         except ItemDoesntExist:
-            logger.error(f"Could not find item for path {path}")
+            logger.info(f"Could not find item for path {path}")
+            self.path_to_id_map.pop(path, None)
             raise
         except Exception as e:
             logger.error(f"Failed to get attributes for {path}: {e}")
