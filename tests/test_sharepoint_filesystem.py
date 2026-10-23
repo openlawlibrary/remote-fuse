@@ -2,10 +2,16 @@
 This module tests sharepoint API by invoking it through
 FuseRemoteFilesystem API. This does not mount the filesystem.
 We use pathlib like API to test integration with SharePoint.
+
+The site is shared and other people add content to it, so every test works
+inside its own uniquely named folder and never asserts on the whole site.
 """
 import errno
 import os
+import stat
 import sys
+import uuid
+
 import pytest
 
 from remote_fuse.core import FuseRemoteFilesystem
@@ -21,63 +27,91 @@ def fs():
         print(f"Error: Missing required environment variables: {', '.join(missing)}")
         print("Please set them before running this test.")
         sys.exit(1)
-    
+
     fs = FuseRemoteFilesystem(operations_class=SharePointOperations)
     # initialization is done as part of main method, so we have to do it by hand here
     fs.executor.run(fs.operations.initialize())
     return fs
 
 
-def test_readdir_sharepoint(fs: FuseRemoteFilesystem):
-    # Test listing root directory
-    root_contents = fs.readdir("/", 0)
-    assert len(root_contents) == 4
-    items = [i for i in root_contents if i.name not in [".", ".."]]
+def is_directory(attrs):
+    return bool(attrs.st_mode & stat.S_IFDIR)
 
-    shared_docs = next(i.name for i in items if i.name == "Shared Documents")
-    # Get attributes
-    attrs = fs.getattr(f"/{shared_docs}")
-    file_type = "Directory" if attrs.st_mode & 0o40000 else "File"
-    assert file_type == "Directory"
 
-    # If it's a directory, try to list its contents
-    subdir_path = f"/{shared_docs}"
-    subdir_contents = fs.readdir(subdir_path, 0)
-    subdir_items = [i.name for i in subdir_contents if i.name not in [".", ".."]]
+def names(entries):
+    return [e.name for e in entries if e.name not in [".", ".."]]
 
-    assert len(subdir_items) == 2
-    subsubdir_path = f"{subdir_path}/test_folder"
-    subdir_attrs = fs.getattr(subsubdir_path)
-    subfile_type = "Directory" if subdir_attrs.st_mode & 0o40000 else "File"
-    assert subfile_type == "Directory"
 
-    subsubdir_contents = fs.readdir(subsubdir_path, 0)
-    subsubdir_items = [i.name for i in subsubdir_contents if i.name not in [".", ".."]]
-    assert len(subsubdir_items) == 2
+def remove_tree(fs: FuseRemoteFilesystem, path: str):
+    entries = fs.readdir(path, 0)
+    if isinstance(entries, int):
+        return
+    for name in names(entries):
+        child = f"{path}/{name}"
+        attrs = fs.getattr(child)
+        if not isinstance(attrs, int) and is_directory(attrs):
+            remove_tree(fs, child)
+        else:
+            fs.unlink(child)
+    fs.rmdir(path)
+
+
+def make_workspace(fs: FuseRemoteFilesystem, library: str):
+    path = f"/{library}/remote-fuse-test-{uuid.uuid4().hex[:8]}"
+    assert fs.mkdir(path) is None
+    return path
+
+
+@pytest.fixture
+def shared_docs(fs: FuseRemoteFilesystem):
+    path = make_workspace(fs, "Shared Documents")
+    yield path
+    remove_tree(fs, path)
+
+
+@pytest.fixture
+def general(fs: FuseRemoteFilesystem):
+    path = make_workspace(fs, "General")
+    yield path
+    remove_tree(fs, path)
+
+
+def test_readdir_sharepoint(fs: FuseRemoteFilesystem, shared_docs: str):
+    root_items = names(fs.readdir("/", 0))
+    assert "Shared Documents" in root_items
+    assert "General" in root_items
+    assert is_directory(fs.getattr("/Shared Documents"))
+
+    subdir_path = f"{shared_docs}/test_folder"
+    assert fs.mkdir(subdir_path) is None
+    assert fs.write(f"{subdir_path}/test1.txt", b"first", 0) == 5
+    assert fs.write(f"{subdir_path}/test2.txt", b"second", 0) == 6
+
+    assert names(fs.readdir(shared_docs, 0)) == ["test_folder"]
+    assert is_directory(fs.getattr(subdir_path))
+
+    subsubdir_items = names(fs.readdir(subdir_path, 0))
+    assert sorted(subsubdir_items) == ["test1.txt", "test2.txt"]
     for subitem in subsubdir_items:
-        print(f"    - {subitem}")
-        subsubattrs = fs.getattr(f"{subsubdir_path}/{subitem}")
-        file_type = "Directory" if subsubattrs.st_mode & 0o40000 else "File"
-        assert file_type == "File"
-
-    general = next(i.name for i in items if i.name == "General")
-    general_contents = fs.readdir(general, 0)
-    general_items = [i for i in general_contents if i.name not in [".", ".."]]
-    assert len(general_items) == 0
+        assert not is_directory(fs.getattr(f"{subdir_path}/{subitem}"))
 
 
-def test_read_file_sharepoint(fs: FuseRemoteFilesystem):
-    # Test listing root directory
-    file_path = "/Shared Documents/test_folder/test3.txt"
+def test_readdir_empty_folder_sharepoint(fs: FuseRemoteFilesystem, general: str):
+    assert names(fs.readdir(general, 0)) == []
+
+
+def test_read_file_sharepoint(fs: FuseRemoteFilesystem, shared_docs: str):
+    file_path = f"{shared_docs}/test3.txt"
+    expected = b"Another test file" * 50
+    fs.write(file_path, expected, 0)
+
     file_attrs = fs.getattr(file_path)
-    root_contents = fs.read(file_path, file_attrs.st_size, 0)
+    assert file_attrs.st_size == len(expected)
+    assert fs.read(file_path, file_attrs.st_size, 0) == expected
 
-    assert root_contents == b"Another test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test fileAnother test file"
 
-
-def test_create_empty_directory_sharepoint(fs: FuseRemoteFilesystem):
-    # Test listing root directory
-    sharepoint_path = "/empty_dir"
+def test_create_empty_directory_sharepoint(fs: FuseRemoteFilesystem, shared_docs: str):
+    sharepoint_path = f"{shared_docs}/empty_dir"
 
     fs.mkdir(sharepoint_path)
     dir_contents = fs.readdir(sharepoint_path, 0)
@@ -86,9 +120,9 @@ def test_create_empty_directory_sharepoint(fs: FuseRemoteFilesystem):
     assert entry_names == [".", ".."]
 
 
-def test_delete_empty_directory_sharepoint(fs: FuseRemoteFilesystem):
-    # Test listing root directory
-    sharepoint_path = "/empty_dir"
+def test_delete_empty_directory_sharepoint(fs: FuseRemoteFilesystem, shared_docs: str):
+    sharepoint_path = f"{shared_docs}/empty_dir"
+    fs.mkdir(sharepoint_path)
 
     fs.rmdir(sharepoint_path)
 
@@ -97,20 +131,19 @@ def test_delete_empty_directory_sharepoint(fs: FuseRemoteFilesystem):
     assert ret == -errno.ENOENT
 
 
-def test_create_file_sharepoint(fs: FuseRemoteFilesystem):
-    # Test listing root directory
-    sharepoint_path = "/Shared Documents/test_file.txt"
+def test_create_file_sharepoint(fs: FuseRemoteFilesystem, shared_docs: str):
+    sharepoint_path = f"{shared_docs}/test_file.txt"
 
     fs.write(sharepoint_path, b"custom content", 0)
     file_attrs = fs.getattr(sharepoint_path)
     file_contents = fs.read(sharepoint_path, file_attrs.st_size, 0)
 
     assert file_contents == b"custom content"
-    
 
-def test_delete_file_sharepoint(fs: FuseRemoteFilesystem):
-    # Test listing root directory
-    sharepoint_path = "/Shared Documents/test_file.txt"
+
+def test_delete_file_sharepoint(fs: FuseRemoteFilesystem, shared_docs: str):
+    sharepoint_path = f"{shared_docs}/test_file.txt"
+    fs.write(sharepoint_path, b"custom content", 0)
 
     fs.unlink(sharepoint_path)
 
@@ -118,9 +151,9 @@ def test_delete_file_sharepoint(fs: FuseRemoteFilesystem):
     assert file_attrs == -errno.ENOENT
 
 
-def test_rename_file_sharepoint(fs: FuseRemoteFilesystem):
-    old_path = "/Shared Documents/test_file.txt"
-    new_path = "/Shared Documents/new_test_file.txt"
+def test_rename_file_sharepoint(fs: FuseRemoteFilesystem, shared_docs: str):
+    old_path = f"{shared_docs}/test_file.txt"
+    new_path = f"{shared_docs}/new_test_file.txt"
 
     # create file
     fs.write(old_path, b"custom content", 0)
@@ -138,9 +171,11 @@ def test_rename_file_sharepoint(fs: FuseRemoteFilesystem):
     assert file_attrs == -errno.ENOENT
 
 
-def test_rename_file_different_parent_sharepoint(fs: FuseRemoteFilesystem):
-    old_path = "/Shared Documents/new_test_file.txt"
-    new_path = "/General/test_file.txt"
+def test_rename_file_different_parent_sharepoint(
+    fs: FuseRemoteFilesystem, shared_docs: str, general: str
+):
+    old_path = f"{shared_docs}/new_test_file.txt"
+    new_path = f"{general}/test_file.txt"
 
     # create file
     fs.write(old_path, b"custom content", 0)
