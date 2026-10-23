@@ -23,6 +23,9 @@ jobs:
     - name: Run Ruff
       uses: astral-sh/ruff-action@4919ec5cf1f49eff0871dbcea0da843445b837e6
 
+      with:
+        version: "0.17.2"
+
     - name: Install fuse
       run: |
         sudo add-apt-repository universe
