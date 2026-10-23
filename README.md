@@ -33,7 +33,7 @@ fusermount -uqz <mount-point>
 
 ```bash
 # Install dependencies
-python3.10 -m venv .venv
+python3.13 -m venv .venv
 source .venv/bin/activate
 
 # Install dependencies
@@ -45,7 +45,7 @@ pip install -e ".[test]"
 
 ## Requirements
 
-- Python 3.10 or newer
+- Python 3.13 or newer
 - Linux with FUSE 2. On Ubuntu, install `fuse`, `libfuse-dev`, and `pkg-config`
   before installing this package. Native mounting on macOS is not supported.
 
@@ -70,7 +70,7 @@ create and remove uniquely named folders on the configured site.
 The `fuse-sharepoint` command remains available as an alias for `remote-fuse`.
 
 With uv, use `uv sync --locked --all-extras` and `uv run --locked pytest`.
-The `.python-version` file selects Python 3.10.
+The `.python-version` file selects Python 3.13.
 
 ## Overview of the project
 
