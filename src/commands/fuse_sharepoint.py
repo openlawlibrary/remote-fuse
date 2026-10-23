@@ -1,4 +1,5 @@
-import fuse
+from importlib.metadata import version
+
 from remote_fuse.core import FuseRemoteFilesystem
 from remote_fuse.sharepoint import SharePointOperations
 
@@ -6,7 +7,7 @@ def main():
     # Initialize filesystem
     fs = FuseRemoteFilesystem(
             operations_class=SharePointOperations,
-            version="%prog " + fuse.__version__,
+            version="%prog " + version("remote-fuse"),
             dash_s_do='setsingle'
     )
     fs.usage = """

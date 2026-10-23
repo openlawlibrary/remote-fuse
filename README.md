@@ -23,9 +23,9 @@ The following environment variables need to be set:
 ```bash
 # Mount remote cloud storage
 remote-fuse <mounting-point>
-# Optionally, you can add `--site-id <site-id` as an argument to the command.
+# Optionally, add `--site-id <site-id>` to override SITE_ID.
 
-# Unomunt when finished
+# Unmount when finished
 fusermount -uqz <mount-point>
 ```
 
@@ -33,7 +33,7 @@ fusermount -uqz <mount-point>
 
 ```bash
 # Install dependencies
-python -m venv .venv
+python3.10 -m venv .venv
 source .venv/bin/activate
 
 # Install dependencies
@@ -45,7 +45,9 @@ pip install -e ".[test]"
 
 ## Requirements
 
-- FUSE implementation (libfuse2 on Ubuntu, macFUSE on macOS)
+- Python 3.10 or newer
+- Linux with FUSE 2. On Ubuntu, install `fuse`, `libfuse-dev`, and `pkg-config`
+  before installing this package. Native mounting on macOS is not supported.
 
 ## Usage
 
@@ -53,12 +55,22 @@ pip install -e ".[test]"
 # Mount SharePoint site as local directory
 python src/commands/fuse_sharepoint.py <mount-point> [--site-id optional]
 
-# Unomunt SharePoint site when finished
+# Unmount SharePoint site when finished
 fusermount -uqz <mount-point>
 
 # Run tests
 pytest
 ```
+
+Offline regression tests run without credentials. SharePoint integration tests
+need all four environment variables; mounted tests also need `/dev/fuse` and
+`fusermount`. Tests skip when these requirements are missing. Integration tests
+create and remove uniquely named folders on the configured site.
+
+The `fuse-sharepoint` command remains available as an alias for `remote-fuse`.
+
+With uv, use `uv sync --locked --all-extras` and `uv run --locked pytest`.
+The `.python-version` file selects Python 3.10.
 
 ## Overview of the project
 

@@ -9,10 +9,11 @@ inside its own uniquely named folder and never asserts on the whole site.
 import errno
 import os
 import stat
-import sys
 import uuid
 
 import pytest
+
+pytest.importorskip("fuse", reason="SharePoint integration requires the native FUSE binding")
 
 from remote_fuse.core import FuseRemoteFilesystem
 from remote_fuse.sharepoint import SharePointOperations
@@ -24,9 +25,7 @@ def fs():
     required_vars = ['TENANT_ID', 'CLIENT_ID', 'CLIENT_SECRET', 'SITE_ID']
     missing = [var for var in required_vars if not os.environ.get(var)]
     if missing:
-        print(f"Error: Missing required environment variables: {', '.join(missing)}")
-        print("Please set them before running this test.")
-        sys.exit(1)
+        pytest.skip(f"SharePoint credentials are missing: {', '.join(missing)}")
 
     fs = FuseRemoteFilesystem(operations_class=SharePointOperations)
     # initialization is done as part of main method, so we have to do it by hand here

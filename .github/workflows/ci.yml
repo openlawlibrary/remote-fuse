@@ -28,17 +28,17 @@ jobs:
 
     - name: Install fuse
       run: |
-        sudo add-apt-repository universe
-        sudo apt install libfuse2
+        sudo apt-get update
+        sudo apt-get install -y fuse libfuse-dev pkg-config
     - name: Install uv
       uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
     - name: Set up Python
       run: uv python install
 
     - name: Install the project
-      run: uv sync --all-extras --dev
+      run: uv sync --locked --all-extras
     - name: Run tests
-      run: uv run pytest
+      run: uv run --locked pytest
       env:
         TENANT_ID: ${{ secrets.TENANT_ID }}
         CLIENT_ID: ${{ secrets.CLIENT_ID }}
@@ -60,9 +60,6 @@ jobs:
         uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86
       - name: Set up Python
         run: uv python install
-
-      - name: Install dependencies
-        run: uv sync --all-extras --dev
 
       - name: Build distributions
         run: uv build --no-sources

@@ -11,3 +11,11 @@ wheels/
 
 # Log files
 *.log
+
+# Local credentials and editor caches
+.env
+.env.*
+!.env.example
+.DS_Store
+.pytest_cache/
+.ruff_cache/

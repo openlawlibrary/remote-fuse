@@ -159,7 +159,7 @@ class SharePointOperations(RemoteOperations):
             is_dir = hasattr(item, "folder") and getattr(item, "folder", None) is not None
             logger.debug(f"Item {item.name}: folder property: {getattr(item, 'folder', None)}, file property: {getattr(item, 'file', None)}, is_dir: {is_dir}")
             mode = 0o755 | stat.S_IFDIR if is_dir else 0o644 | stat.S_IFREG
-            size = item.size if item.size and not is_dir else 4096
+            size = 4096 if is_dir else (item.size or 0)
             last_modified = item.last_modified_date_time.timestamp() if item.last_modified_date_time else datetime.now().timestamp()
 
             st = RemoteStat()
@@ -174,6 +174,7 @@ class SharePointOperations(RemoteOperations):
             if e.response_status_code == 404:
                 self.path_to_id_map.pop(path, None)
                 raise ItemDoesntExist
+            raise
         except ItemDoesntExist:
             logger.info(f"Could not find item for path {path}")
             self.path_to_id_map.pop(path, None)
@@ -345,6 +346,12 @@ class SharePointOperations(RemoteOperations):
         except Exception as e:
             logger.error(f"Failed to upload content for {path}: {e}")
             raise
+
+    async def _truncate_file(self, path: str, length: int) -> None:
+        """Resize a file, padding extensions with zero bytes."""
+        content = await self._fetch_file_content(path)
+        content = content[:length] + b"\0" * max(0, length - len(content))
+        await self._upload_file_content(path, content)
 
     async def _create_folder(self, path: str) -> None:
         """Create a new folder in SharePoint"""

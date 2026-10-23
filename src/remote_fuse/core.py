@@ -99,12 +99,10 @@ class FuseRemoteFilesystem(Fuse):
         """
         Fuse.__init__(self, *args, **kwargs)
 
-        if operations is not None:
-            self.operations = operations
-        elif operations_class is not None:
-            self.operations = operations_class()
-        else:
+        if operations is None and operations_class is None:
             raise Exception("Operations argument is missing. Either provide an object or a class name")
+        self._operations = operations
+        self._operations_class = operations_class
 
         self.executor = AsyncExecutor()
 
@@ -118,6 +116,17 @@ class FuseRemoteFilesystem(Fuse):
         self.fuse_args.add("negative_timeout=0") # Disable negative response caching
         self.fuse_args.add("intr")             # Allow requests to be interrupted
         self.fuse_args.add("big_writes")       # Enable larger writes 
+
+    @property
+    def operations(self):
+        """Create the backend when needed, after help/version parsing."""
+        if self._operations is None:
+            self._operations = self._operations_class()
+        return self._operations
+
+    @operations.setter
+    def operations(self, value):
+        self._operations = value
 
     def statfs(self):
         """Return filesystem statistics"""
@@ -254,17 +263,13 @@ class FuseRemoteFilesystem(Fuse):
         """Write data to a file."""
         logger.debug(f"Writing to file: {path}, {len(data)} bytes at offset: {offset}")
         try:
-            # Need to read current content first if offset > 0 or not writing to the end
+            # A write replaces bytes; truncation is a separate operation.
             current_content = b""
-            if offset > 0:
-                try:
-                    current_content = self.executor.run(self.operations._fetch_file_content(path))
-                except ItemDoesntExist:
-                    # File might not exist yet
-                    pass
-                except Exception as e:
-                    logger.error(f"Failed to read current content: {e}")
-                    return -errno.EIO
+            try:
+                current_content = self.executor.run(self.operations._fetch_file_content(path))
+            except ItemDoesntExist:
+                # File might not exist yet.
+                pass
 
             # If offset is beyond current size, pad with zeros
             if offset > len(current_content):
@@ -351,6 +356,8 @@ class FuseRemoteFilesystem(Fuse):
         return 0
 
     def main(self, *args, **kwargs):
+        if not self.fuse_args.mount_expected():
+            return Fuse.main(self, *args, **kwargs)
         # site_id is available only after parsing if it is not in the environment vars
         site_id = getattr(self, "site_id", None)
         if site_id is not None:
